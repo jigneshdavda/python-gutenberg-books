@@ -1,4 +1,6 @@
 from ast import Str
+from asyncore import file_wrapper
+from ntpath import join
 from unittest import result
 from app import mysql
 
@@ -12,9 +14,69 @@ class BookModel():
             
     def get_books_by_filter(self, formData):
         
+        # Declare string for query
+        filterQuery = ""
         
+        # Check values for below params
+                
+        # Check for book_number
+        if formData['book_number'].strip():
+            tempNumber = formData['book_number'].split(",")
+            tempNumber = "','".join(tempNumber)
+            filterQuery += "(SELECT id FROM `books_book` WHERE gutenberg_id IN ("+str("'"+tempNumber+"'")+") ) UNION "
         
-        return self.get_book_info(3, formData['limit'])
+        # Check for language
+        if formData['language'].strip():
+            tempLang = formData['language'].split(",")
+            tempLang = "','".join(tempLang)
+            # print("'"+tempLang+"'")
+            filterQuery += "(SELECT bbl.book_id as id FROM `books_language` AS bl, `books_book_languages` AS bbl WHERE bl.id = bbl.language_id AND bl.code IN ("+str("'"+tempLang+"'")+") ) UNION "
+            
+        # Check for mime_type
+        if formData['mime_type'].strip():
+            filterQuery += "(SELECT book_id as id FROM `books_format` WHERE mime_type LIKE '%"+formData['mime_type']+"%' ) UNION "
+            
+        # Check for author
+        if formData['author'].strip():
+            filterQuery += "(SELECT bba.book_id as od FROM `books_author` as ba, `books_book_authors` as bba WHERE ba.id = bba.author_id AND ba.name LIKE '%"+str(formData['author'])+"%' ) UNION "
+            
+        # Check for book_title
+        if formData['title'].strip():
+            filterQuery += "(SELECT id FROM `books_book` WHERE title LIKE '%"+str(formData['title'])+"%' ) UNION "
+            
+        # Check for topic
+        if formData['topic'].strip():
+            tempTopic = formData['topic'].split(",")
+            tempTopic = "','".join(tempTopic)
+            
+            filterQuery += "(SELECT bbb.book_id as id FROM `books_bookshelf` as bb, `books_book_bookshelves` as bbb WHERE bb.id = bbb.bookshelf_id AND bb.name LIKE '%"+str("'"+tempTopic+"'")+"%' ) UNION "
+            filterQuery += "(SELECT bbs.book_id as id FROM `books_subject` as bs, `books_book_subjects` as bbs WHERE bs.id = bbs.subject_id AND bs.name LIKE '%"+str("'"+tempTopic+"'")+"%' )"
+        
+        # Remove extra UNION from string
+        filterQuery = filterQuery.rsplit('UNION', 1)[0]
+        filterQuery += " LIMIT "+str(formData['limit'])
+        
+        # print(filterQuery)
+        
+        # Check for filterQuery empty string
+        if filterQuery.strip():
+            self.conn.execute(filterQuery)
+            filteredResults = self.conn.fetchall()
+            
+            # print(filteredResults)
+            
+            # Parse book id from the result
+            tempResult = ""
+            for result in filteredResults:
+                tempResult += str(result['id'])+","
+            filteredResults = tempResult[:-1]
+            # print(filteredResults)
+        else:
+          filteredResults = ""
+          
+        # filteredResults = ''
+        
+        return self.get_book_info(filteredResults, formData['limit'])
     
     def get_author_info(self, bookId):
         authorQuery = "SELECT name, birth_year, death_year FROM `books_book_authors` as bba, `books_author` as ba WHERE bba.author_id = ba.id AND book_id = "+str(bookId)
@@ -53,18 +115,25 @@ class BookModel():
         return formatResults
     
     def get_book_info(self, bookIds, limit):
-        bookQuery = "SELECT id, title, gutenberg_id FROM books_book WHERE id IN ("+str(bookIds)+") limit "+str(limit)
+        
+        if bookIds.strip():
+            whereQuery = " WHERE id IN ("+str(bookIds)+") "
+        else:
+            whereQuery = ""
+        
+        bookQuery = "SELECT id, title, gutenberg_id FROM books_book "+str(whereQuery)+" limit "+str(limit)
+        # print(bookQuery)
         self.conn.execute(bookQuery)
         bookResults = self.conn.fetchall()
         
         result = []
         
         for item in bookResults:
-            item['author_info'] = BookModel().get_author_info(item['id'])
-            item['language'] = BookModel().get_language_info(item['id'])
-            item['subjects'] = BookModel().get_subjects_info(item['id'])
-            item['book_shelves'] = BookModel().get_book_shelfs_info(item['id'])
-            item['book_formats'] = BookModel().get_book_formats(item['id'])
+            item['author_info'] = self.get_author_info(item['id'])
+            item['language'] = self.get_language_info(item['id'])
+            item['subjects'] = self.get_subjects_info(item['id'])
+            item['book_shelves'] = self.get_book_shelfs_info(item['id'])
+            item['book_formats'] = self.get_book_formats(item['id'])
             result.append(item)
         
         return result
