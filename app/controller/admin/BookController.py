@@ -40,8 +40,12 @@ class BookController(BookModel):
             """
             # Query to book filter function to get books data
             bookResult = BookModel().get_books_by_filter(formRequest)
-                
-            return successResponse(BOOKS_SUCCESSFULL_LISTED, bookResult, HTTPStatus.OK)
+            
+            # Check bookResult
+            if bookResult:
+                return successResponse(BOOKS_SUCCESSFULL_LISTED, bookResult, HTTPStatus.OK)
+            else:
+                return successResponse(NO_SEARCH_RESULT_FOUND, bookResult, HTTPStatus.OK)
         
         # Send failure response
         return failureResponse(ONE_OR_MORE_PARAMETERS_MISSING, validator.messages(), HTTPStatus.OK)

@@ -46,31 +46,32 @@ class BookModel():
             
         # Check for topic
         if formData['topic'].strip():
-            tempTopic = formData['topic'].split(",")
-            tempTopic = "','".join(tempTopic)
-            
-            filterQuery += "(SELECT bbb.book_id as id FROM `books_bookshelf` as bb, `books_book_bookshelves` as bbb WHERE bb.id = bbb.bookshelf_id AND bb.name LIKE '%"+str("'"+tempTopic+"'")+"%' ) UNION "
-            filterQuery += "(SELECT bbs.book_id as id FROM `books_subject` as bs, `books_book_subjects` as bbs WHERE bs.id = bbs.subject_id AND bs.name LIKE '%"+str("'"+tempTopic+"'")+"%' )"
+            filterQuery += "(SELECT bbb.book_id as id FROM `books_bookshelf` as bb, `books_book_bookshelves` as bbb WHERE bb.id = bbb.bookshelf_id AND bb.name LIKE '%"+str(formData['topic'])+"%' ) UNION "
+            filterQuery += "(SELECT bbs.book_id as id FROM `books_subject` as bs, `books_book_subjects` as bbs WHERE bs.id = bbs.subject_id AND bs.name LIKE '%"+str(formData['topic'])+"%' )"
         
         # Remove extra UNION from string
         filterQuery = filterQuery.rsplit('UNION', 1)[0]
-        filterQuery += " LIMIT "+str(formData['limit'])
         
         # print(filterQuery)
         
         # Check for filterQuery empty string
         if filterQuery.strip():
+            filterQuery += " LIMIT "+str(formData['limit'])
+            
             self.conn.execute(filterQuery)
             filteredResults = self.conn.fetchall()
             
             # print(filteredResults)
             
-            # Parse book id from the result
-            tempResult = ""
-            for result in filteredResults:
-                tempResult += str(result['id'])+","
-            filteredResults = tempResult[:-1]
-            # print(filteredResults)
+            if filteredResults:
+                # Parse book id from the result
+                tempResult = ""
+                for result in filteredResults:
+                    tempResult += str(result['id'])+","
+                filteredResults = tempResult[:-1]
+                # print(filteredResults)
+            else:
+                filteredResults = ""
         else:
           filteredResults = ""
           
@@ -119,7 +120,7 @@ class BookModel():
         if bookIds.strip():
             whereQuery = " WHERE id IN ("+str(bookIds)+") "
         else:
-            whereQuery = ""
+            return []
         
         bookQuery = "SELECT id, title, gutenberg_id FROM books_book "+str(whereQuery)+" limit "+str(limit)
         # print(bookQuery)
